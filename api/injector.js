@@ -133,7 +133,7 @@ async function fetch_data(id, idd, between_date, last_time, uri, code, token, in
                                     date_time: new Date(data[index].date_time).format('Y-MM-ddTHH:mm:SS') + '+' + '0' + new Date().getTimezoneOffset() / (-60),
                                     serialnum: equipments[_key].serialnum,
                                     unit: equipments[_key].unit_name,
-                                    measure: data[index].measure
+                                    measure: data[index].measure.toFixed(3)
                                 });
 
                                 measure_time = new Date(data[index].date_time).format('Y-MM-ddTHH:mm:SS') + '+' + '0' + new Date().getTimezoneOffset() / (-60);
