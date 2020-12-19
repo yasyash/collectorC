@@ -93,7 +93,7 @@ async function fetch_data(id, idd, between_date, last_time, uri, code, token, in
 
     //begin while
     while (!_go_out) {
-        console.log("iteration = ", i)
+        //console.log("iteration = ", i)
         //if (_go_out) break;
         var measure_time;
 
@@ -234,7 +234,7 @@ async function fetch_data(id, idd, between_date, last_time, uri, code, token, in
                                 detect_data(time_frame[1], between_date[1]).then(_out => {
                                     if (_out > 0) {
                                         _limit++;
-                                        console.log("msg_id = 0 but data exist = ", _limit);
+                                        //console.log("msg_id = 0 but data exist = ", _limit);
 
                                     } else {
                                         _time = between_date[1];
@@ -281,7 +281,7 @@ async function fetch_data(id, idd, between_date, last_time, uri, code, token, in
                                         });
                                 }
                             } else {
-                                console.log("process time frame = ", process_time_frame);
+                                //console.log("process time frame = ", process_time_frame);
 
                                 injection_update_time(id, process_time_frame).then(result => {
 
@@ -304,9 +304,7 @@ async function fetch_data(id, idd, between_date, last_time, uri, code, token, in
                 }));
 
 
-                console.log("out ====")
             } else {
-                console.log("else ====")
 
                 //if message line is empty but time frame exist
                 detect_data(time_frame[1], between_date[1]).then(_out => {
@@ -369,7 +367,7 @@ async function injection_update_all_time(id, _time, last_time, msg_id) {
             msg_id: msg_id
         }, { patch: true })
         .then(result => {
-            console.log("Message id =  is inserted at ", last_time, " from ", _time);
+            console.log("Message is inserted at ", last_time, " from ", _time);
         }).catch(err => console.log("Update Injection table error...", err));
 }
 
@@ -398,7 +396,6 @@ async function injection_update_time(id, _time) {
 async function injected_table_ins(msg_id, _msg_time, _time, uri, _transaction, idd)
 {
 
-    console.log("Update = ", msg_id, _msg_time, _time, uri, _transaction, idd)
     await  Injected.forge({"date_time": _time, "msg_id": msg_id, "uri": uri, "transaction": _transaction, "msg_time": _msg_time, "idd": idd}).save()
     .catch(err => console.log("Insert in Injected table error...", err));
 }

@@ -4,7 +4,7 @@
   "description": "Data collector server app",
   "main": "index.js",
   "scripts": {
-    "server": "nodemon --watch  --max-old-space-size=4096 -- index.js",
+    "server": "nodemon --watch -- index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
