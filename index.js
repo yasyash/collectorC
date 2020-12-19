@@ -16,12 +16,12 @@ app.use(bodyParser.json());
 app.use('/query', query);
 
 const options = {
-  key: fs.readFileSync('./keys/chel_key.key'),
-  cert: fs.readFileSync('./keys/chel_cert.crt')
+  //key: fs.readFileSync('./keys/chel_key.key'),
+  //cert: fs.readFileSync('./keys/asoiza.voeikovmgo.crt')
 };
 
 
-https.createServer(options, app).listen(8383, () => {
+https.createServer({}, app).listen(8383, () => {
 
   console.log('Client SSL is started on 8383 port...');
   cron.schedule("* * * * *", () => {

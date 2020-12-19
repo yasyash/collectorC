@@ -1,9 +1,10 @@
 const request = require('request');
 
 const Stations = require('../models/stations');
-const Sensors_data = require('../models/fake_data');
+const Sensors_data = require('../models/sensors_data');
 const Injection = require('../models/injection');
 const Equipments = require('../models/equipments');
+const Injected = require('../models/injected');
 
 const format = require('node.date-time');
 const isEmpty = require('lodash.isempty');
@@ -37,7 +38,7 @@ var aspapi_codes_inv = {
 async function injector() {
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
-   await Injection
+    await Injection
         .where('is_present', true)
         .where('id', 2) //for esolated pseudo-thread for each API direction
         .fetchAll()
@@ -49,6 +50,7 @@ async function injector() {
                     const between_date = [new Date(station[key].date_time).format('Y-MM-ddTHH:mm:SS'), new Date().format('Y-MM-ddTHH:mm:SS')];
 
                     var _stat = fetch_data(station[key].id, station[key].idd, between_date, station[key].last_time, station[key].uri, station[key].code, station[key].token, station[key].indx, station[key].msg_id)
+
                 }
             }
         }).catch(err => console.log('Database connection failed...', err));
@@ -65,7 +67,6 @@ async function fetch_data(id, idd, between_date, last_time, uri, code, token, in
     var planty = [];
     var data = [];
     var i = 0;
-    //console.log("msg_id = ", msg_id);
     // cursors prepare
     await Equipments
         .where('idd', idd)
@@ -76,7 +77,7 @@ async function fetch_data(id, idd, between_date, last_time, uri, code, token, in
             equipments = _equipments.toJSON();
         }).catch(err => console.log('Database fetching data failsed...', err));
 
-    //if not recors detection
+    //if not records detection
     await Sensors_data
         .query('whereBetween', 'date_time', between_date)
         .orderBy('date_time', 'asc')
@@ -88,13 +89,13 @@ async function fetch_data(id, idd, between_date, last_time, uri, code, token, in
 
         });
     //console.log("BETWEEN", between_date);
-    console.log("total records is ",planty.length);
+    console.log("total records is ", planty.length);
 
     //begin while
     while (!_go_out) {
-        //console.log("iteration = ", i)
+        console.log("iteration = ", i)
         //if (_go_out) break;
-
+        var measure_time;
 
 
         if (equipments.length > 0) {
@@ -111,6 +112,7 @@ async function fetch_data(id, idd, between_date, last_time, uri, code, token, in
 
             for (_key in equipments) {
                 marker = {};
+                //console.log("mKEYS = ", equipments[_key]);
 
                 await Sensors_data
                     .query('whereBetween', 'date_time', time_frame)
@@ -121,97 +123,99 @@ async function fetch_data(id, idd, between_date, last_time, uri, code, token, in
                         data = _data.toJSON();
 
 
-                if (data.length > 0) {//create a pouch with measurements
-                   // console.log("data ----", data)
-                    var pouch = {};
+                        if (data.length > 0) {//create a pouch with measurements
+                            // console.log("data ----", data)
+                            var pouch = {};
 
-                    for (index in data) {
+                            for (index in data) {
 
-                        pouch = ({
-                            date_time: new Date(data[index].date_time).format('Y-MM-ddTHH:mm:SS') + '+' + '0' + new Date().getTimezoneOffset() / (-60),
-                            serialnum: equipments[_key].serialnum,
-                            unit: equipments[_key].unit_name,
-                            measure: data[index].measure
-                        });
+                                pouch = ({
+                                    date_time: new Date(data[index].date_time).format('Y-MM-ddTHH:mm:SS') + '+' + '0' + new Date().getTimezoneOffset() / (-60),
+                                    serialnum: equipments[_key].serialnum,
+                                    unit: equipments[_key].unit_name,
+                                    measure: data[index].measure
+                                });
 
+                                measure_time = new Date(data[index].date_time).format('Y-MM-ddTHH:mm:SS') + '+' + '0' + new Date().getTimezoneOffset() / (-60);
 
-                    }
-                    var name = "";
+                            }
+                            var name = "";
 
-                    if (aspapi_codes_inv[data[index].typemeasure]) {
-                        name = String(aspapi_codes_inv[data[index].typemeasure]);
+                            if (aspapi_codes_inv[data[index].typemeasure]) {
+                                name = String(aspapi_codes_inv[data[index].typemeasure]);
 
-                    }
-                    else {
-                        name = String(data[index].typemeasure);
+                            }
+                            else {
+                                name = String(data[index].typemeasure);
 
-                    }
-
-
-                    if (!isEmpty(pouch)) {
-                        marker[name] = pouch;
-                    }
+                            }
 
 
-                    if (!isEmpty(marker))
-                        merge(params, marker);
+                            if (!isEmpty(pouch)) {
+                                marker[name] = pouch;
+                            }
+
+
+                            if (!isEmpty(marker))
+                                merge(params, marker);
 
 
 
-                }
+                        }
 
-            }).catch(err => console.log('Database fetching data failed...', err));
+                    }).catch(err => console.log('Database fetching data failed...', err));
 
 
             }
 
             if (!isEmpty(params)) {
 
-               /* console.log('JSON = ', JSON.stringify({
-                    url: uri, method: 'POST', json: {
-                        "token": token,
-                        "message": _limit,
-                        "locality": indx,
-                        "object": code,
-                        "date_time": between_date[1],
-                        "params": params
-                    }
-                }));*/
+                /* console.log('JSON = ', JSON.stringify({
+                     url: uri, method: 'POST', json: {
+                         "token": token,
+                         "message": _limit,
+                         "locality": indx,
+                         "object": code,
+                         "date_time": between_date[1],
+                         "params": params
+                     }
+                 }));*/
+            console.log('params = ', JSON.stringify({
+                "token": token,
+                "message": _limit,
+                "locality": indx,
+                "object": code,
+                "date_time": between_date[1],
+                "params": params
+            }));
 
-                request
-                    .defaults({
-                        // strictSSL: 'false', // allow us to use our self-signed cert for testing
-                        //rejectUnauthorized: 'false',
-                        'content-type': 'application/json'
-                    });
-                //console.log("in request")
-
-                request({
-                    url: uri, method: 'POST', json: {
-                        "token": token,
-                        "message": _limit,
-                        "locality": indx,
-                        "object": code,
-                        "date_time": between_date[1],
-                        "params": params
-                    }
-                },
+                var options = {
+                    headers: {
+                        'Content-Type': 'multipart/form-data'
+                    },
+                    uri: uri,
+                    method: 'POST'
+                    // formData: JSON.stringify( )
+                };
+                var r = request(options,
                     function (err, res, body) {
-                       // console.log("out request")
+                        // console.log("out request")
                         if (!isEmpty(err)) {
                             var success = false;
                             _conn_status = false;
-                           // console.log("err = ", err);
+                            console.log("err = ", err);
                             _go_out = true;
                         }
                         else {
-                           // console.log("success = ");
-                            var success = res.body.success;
+                            console.log("response = ", res.body);
+                            //console.log("response all= ", res);
 
+                            var result = JSON.parse(res.body);
+                            console.log("status = ", result.success);
                             _conn_status = true;
                         }
 
-                        if (success) {
+                        if (result.success) {
 
                             let process_time_frame = time_frame[1];
 
@@ -230,7 +234,7 @@ async function fetch_data(id, idd, between_date, last_time, uri, code, token, in
                                 detect_data(time_frame[1], between_date[1]).then(_out => {
                                     if (_out > 0) {
                                         _limit++;
-                                        // console.log("msg_id = 0 but data exist = ", _limit);
+                                        console.log("msg_id = 0 but data exist = ", _limit);
 
                                     } else {
                                         _time = between_date[1];
@@ -249,13 +253,14 @@ async function fetch_data(id, idd, between_date, last_time, uri, code, token, in
 
 
                             }
+                            injected_table_ins(result.message, between_date[1],  measure_time, uri, result.transaction, idd);
 
 
                         }
                         else {
                             let process_time_frame = new Date((new Date(between_date[1]).getTime() - 86400000)).format('Y-MM-ddTHH:mm:SS'); //value that 24 hours ago from now
 
-                            if (_ms_id < 1440) {
+                            if (_ms_id < 1440) {rs
 
                                 _ms_id++;
 
@@ -276,7 +281,7 @@ async function fetch_data(id, idd, between_date, last_time, uri, code, token, in
                                         });
                                 }
                             } else {
-                                //console.log("process time frame = ", process_time_frame);
+                                console.log("process time frame = ", process_time_frame);
 
                                 injection_update_time(id, process_time_frame).then(result => {
 
@@ -285,22 +290,35 @@ async function fetch_data(id, idd, between_date, last_time, uri, code, token, in
                             }
                         }
 
-                    });
-               // console.log("out ====")
+                    })
+
+                var form = r.form();
+
+                form.append("data", JSON.stringify({
+                    "token": token,
+                    "message": _limit,
+                    "locality": indx,
+                    "object": code,
+                    "date_time": between_date[1],
+                    "params": params
+                }));
+
+
+                console.log("out ====")
             } else {
-               // console.log("else ====")
+                console.log("else ====")
 
                 //if message line is empty but time frame exist
                 detect_data(time_frame[1], between_date[1]).then(_out => {
                     if ((_out == 0)) { //if previous connection is ok
                         _go_out = true;
                         _ms_id = 0;
-                       // console.log("_out", _conn_status)
+                        // console.log("_out", _conn_status)
                         //if line is out
                         if (_conn_status)
                             injection_update_all_time(id, between_date[1], between_date[1], 0)
                                 .then(result => {
-                                    //console.log('Emty results');
+                                    console.log('Emty results');
                                 });
                     }
                 });
@@ -310,8 +328,8 @@ async function fetch_data(id, idd, between_date, last_time, uri, code, token, in
 
         }
 
-     //   console.log("i = ", i)
-      //  if (i > 100) _go_out = true;
+        //   console.log("i = ", i)
+        //  if (i > 100) _go_out = true;
         i++;
     } // end while cycle
 
@@ -351,7 +369,7 @@ async function injection_update_all_time(id, _time, last_time, msg_id) {
             msg_id: msg_id
         }, { patch: true })
         .then(result => {
-            //console.log("Message id =  is inserted at ", last_time, " from ", _time);
+            console.log("Message id =  is inserted at ", last_time, " from ", _time);
         }).catch(err => console.log("Update Injection table error...", err));
 }
 
@@ -362,7 +380,7 @@ async function injection_update_msg(id, msg_id) {
             msg_id: msg_id
         }, { patch: true })
         .then(result => {
-            //console.log("Message id updated");
+            console.log("Message id updated");
         }).catch(err => console.log("Update Injection table error...", err));
 }
 
@@ -373,8 +391,53 @@ async function injection_update_time(id, _time) {
 
         }, { patch: true })
         .then(result => {
-            //console.log("Datetime is updated... ");
+            console.log("Datetime is updated... ");
         }).catch(err => console.log("Update Injection table error...", err));
+}
+
+async function injected_table_ins(msg_id, _msg_time, _time, uri, _transaction, idd)
+{
+
+    console.log("Update = ", msg_id, _msg_time, _time, uri, _transaction, idd)
+    await  Injected.forge({"date_time": _time, "msg_id": msg_id, "uri": uri, "transaction": _transaction, "msg_time": _msg_time, "idd": idd}).save()
+    .catch(err => console.log("Insert in Injected table error...", err));
+}
+
+function try_push() {
+
+    var options = {
+        headers: {
+            'Content-Type': 'multipart/form-data'
+        },
+        uri: 'https://asoiza.voeikovmgo.ru/data/rest.php',
+        method: 'POST'
+        // formData: JSON.stringify( )
+    };
+    var r = request(options,
+        function (err, res, body) {
+            console.log("response = ", body);
+            if (err) {
+                console.log("err = ", err);
+
+
+            } else {
+
+                var success = res.body.success;
+                console.log("status = ", success);
+
+            }
+
+        })
+
+    var form = r.form();
+    form.append("data", JSON.stringify({
+        "token": "4e0d261a4f1bdc65bb10c5422e0154c1", "message": "1", "locality": "5507340", "object": 2, "date_time": "2020-12-18T02:38:30+03",
+        "params":
+        {
+            "P001":
+                { "date_time": "2020-12-1T14:18:51+03", "unit": "мг/м3", "measure": 0.01 }
+        }
+    }))
 }
 
 
