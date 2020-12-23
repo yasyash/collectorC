@@ -13,8 +13,8 @@ const merge = require('lodash.merge');
 var aspapi_codes_inv = {
     "Пыль общая": "P001",
     "PM1": "PM1",
-    "PM2.5": "PM2.5",
-    "PM10": "PM10",
+    "PM2.5": "PM301",
+    "PM10": "P201",
     "NO2": "P005",
     "NO": "P006",
     "NH3": "P019",
@@ -131,7 +131,6 @@ async function fetch_data(id, idd, between_date, last_time, uri, code, token, in
 
                                 pouch = ({
                                     date_time: new Date(data[index].date_time).format('Y-MM-ddTHH:mm:SS') + '+' + '0' + new Date().getTimezoneOffset() / (-60),
-                                    serialnum: equipments[_key].serialnum,
                                     unit: equipments[_key].unit_name,
                                     measure: data[index].measure.toFixed(3)
                                 });
@@ -180,14 +179,14 @@ async function fetch_data(id, idd, between_date, last_time, uri, code, token, in
                          "params": params
                      }
                  }));*/
-            console.log('params = ', JSON.stringify({
-                "token": token,
-                "message": _limit,
-                "locality": indx,
-                "object": code,
-                "date_time": between_date[1],
-                "params": params
-            }));
+                console.log('params = ', JSON.stringify({
+                    "token": token,
+                    "message": _limit,
+                    "locality": indx,
+                    "object": code,
+                    "date_time": between_date[1],
+                    "params": params
+                }));
 
                 var options = {
                     headers: {
@@ -253,14 +252,15 @@ async function fetch_data(id, idd, between_date, last_time, uri, code, token, in
 
 
                             }
-                            injected_table_ins(result.message, between_date[1],  measure_time, uri, result.transaction, idd);
+                            injected_table_ins(result.message, between_date[1], measure_time, uri, result.transaction, idd);
 
 
                         }
                         else {
                             let process_time_frame = new Date((new Date(between_date[1]).getTime() - 86400000)).format('Y-MM-ddTHH:mm:SS'); //value that 24 hours ago from now
 
-                            if (_ms_id < 1440) {rs
+                            if (_ms_id < 1440) {
+                                rs
 
                                 _ms_id++;
 
@@ -393,11 +393,10 @@ async function injection_update_time(id, _time) {
         }).catch(err => console.log("Update Injection table error...", err));
 }
 
-async function injected_table_ins(msg_id, _msg_time, _time, uri, _transaction, idd)
-{
+async function injected_table_ins(msg_id, _msg_time, _time, uri, _transaction, idd) {
 
-    await  Injected.forge({"date_time": _time, "msg_id": msg_id, "uri": uri, "transaction": _transaction, "msg_time": _msg_time, "idd": idd}).save()
-    .catch(err => console.log("Insert in Injected table error...", err));
+    await Injected.forge({ "date_time": _time, "msg_id": msg_id, "uri": uri, "transaction": _transaction, "msg_time": _msg_time, "idd": idd }).save()
+        .catch(err => console.log("Insert in Injected table error...", err));
 }
 
 function try_push() {
