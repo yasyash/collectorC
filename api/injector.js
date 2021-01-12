@@ -13,7 +13,7 @@ const merge = require('lodash.merge');
 var aspapi_codes_inv = {
     "Пыль общая": "P001",
     "PM1": "PM1",
-    "PM2.5": "PM301",
+    "PM2.5": "P301",
     "PM10": "P201",
     "NO2": "P005",
     "NO": "P006",
