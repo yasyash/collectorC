@@ -199,14 +199,14 @@ async function fetch_data(id, idd, between_date, last_time, uri, code, token, in
 
                 console.log("# msg ----", _msg_id_out);
                 
-                /*console.log('params = ', JSON.stringify({
+                console.log('params = ', JSON.stringify({
                     "token": token,
                     "message": _msg_id_out, //incremented field
                     "locality": indx,
                     "object": code,
                     "date_time": between_date[1],
                     "params": params
-                }));*/
+                }));
                 const form = new FormData();
 
                 form.append("data", JSON.stringify({
