@@ -142,7 +142,7 @@ async function fetch_data(id, idd, between_date, last_time, uri, code, token, in
                     .query('whereBetween', 'date_time', time_frame)
                     .where('serialnum', equipments[_key].serialnum)
                     .query({
-                        andWhereRaw: ("typemeasure != 'Напряжение мин.' and typemeasure != 'Напряжением макс.' and typemeasure != 'Темп. сенсор ИБП' ")
+                        andWhereRaw: ("typemeasure != 'Напряжение мин.' and typemeasure != 'Напряжение макс.' and typemeasure != 'Темп. сенсор ИБП' ")
                     })
                     .orderBy('date_time', 'asc')
                     .fetchAll()
