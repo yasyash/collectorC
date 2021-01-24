@@ -1,0 +1,201 @@
+#!/usr/bin/perl -w
+use POSIX qw(strftime);
+
+
+#sudo apt-get install  libsoap-lite-perl
+#sudo apt-get install libdbd-mysql-perl
+#sudo apt-get install libdbi-perl
+#sudo apt-get install  libxml-simple-perl
+
+
+use SOAP::Lite;# (+trace =>"all", readable => 1);
+#( +trace => , maptype => {} );;
+use DBI;
+use MIME::Base64;
+use XML::Simple;
+ 
+$db = DBI->connect("DBI:Pg:host=localhost;dbname=weather","weather","31415") or die "No access to database: $!";
+$i = $j = 0;
+#$period = 5; # average period is 20 minutes
+#$insert
+$insert = "INSERT INTO sensors_data (  idd, serialnum, date_time, typemeasure, measure, is_alert)  VALUES(?,?,?,?,?,?)";
+$update = "UPDATE equipments SET date_time_out = ? WHERE serialnum = ?"; 
+
+$query_ins = $db->prepare("$insert");
+$query_update = $db->prepare("$update");
+$select_st = "SELECT * FROM stations WHERE is_present = true";
+	#print ("Select is " .  localtime() . "\n");
+	$query_sel = $db->prepare("$select_st");
+	$query_sel->execute();
+
+#$wsdl = 'http://84.204.102.4/SkatApiService/Service.asmx';
+
+
+#$xmlns="http://skat.ru/";
+#$method_get = "GetHistoricalDataBrief";
+
+
+#$prefix =  undef;
+
+
+	if ($query_sel->rows >0)
+	{	
+		while (@row_sel = $query_sel->fetchrow_array)
+			{
+		
+				$select = "SELECT * FROM equipments WHERE idd='". $row_sel[0] ."' AND measure_class <> 'data' AND measure_class <> 'alert' "." AND is_present = true";
+				print ("Select = " . $select . " \n");
+				$query = $db->prepare("$select");
+				$query->execute();
+	
+
+				if ($query->rows >0)
+				{	
+					print "In query is ". $query->rows ." rows.\n";
+					while (@row = $query->fetchrow_array)
+					{
+						 #@row = $query->fetchrow_array();
+						 $_ = $row[4];
+			 				m{^\s*(\d{1,4})\W*0*(\d{2})\W*0*(\d{2})\W*0*
+        	 			        (\d{2})\W*0*(\d{2})\W*0*(\d{2})}x;
+							 $j++;
+ 						 print "Query === $j === for sensor === $row[1] === \n Serial num. === $row[2]\n Time period is from $row[4] to ".
+							 strftime ("%Y-%m-%d %H:%M:%S", localtime)."\n";
+
+						 #$avrg_period = SOAP::Data->name('AveragePeriod' => $period);
+							# $id = SOAP::Data->name('string' => $row[2]); #sensor ID
+							# $sensor = SOAP::Data->name('sSensors')->value(\$id);
+			 				#$from  = SOAP::Data->name('From' => "$1-$2-$3T$4:$5:$6");
+							# $to  = SOAP::Data->name('To' => strftime ("%Y-%m-%dT%H:%M:%S", localtime));
+			 
+
+						 #$som = $client->call($method_get,$avrg_period, $sensor,$from, $to, $security );
+							$from  =  "$1-$2-$3T$4:$5:$6";
+							$to  =  strftime ("%Y-%m-%dT%H:%M:%S", localtime);
+
+							$select_meteo = "SELECT * FROM meteo WHERE station='". $row[0] ."' AND date_time > '$from' AND date_time <= '$to'";
+							#print ("Select meteo= " . $select_meteo . " \n");
+							$query_meteo = $db->prepare("$select_meteo");
+							$query_meteo->execute();
+
+							# die $som->faultstring if ($som->fault);
+
+
+							if ($query_meteo->rows >0)
+							{	
+									#print "In query is ". $query->rows ." rows.\n";
+								while (@row_meteo = $query_meteo->fetchrow_array)
+								{								$i++;
+      								#print $t->{Time} . " - " .  $t->{Value} ."\n";
+									#$_ = $t->{Time};
+									#s/T/ /;
+									if ($row[7] eq 'bar') { $measure = $row_meteo[16]};
+									if ($row[7] eq 'temp_out') { $measure = $row_meteo[2]};
+
+									if ($row[7] eq 'hum_out') { $measure = $row_meteo[5]};
+									if ($row[7] eq 'speed_wind') { $measure = $row_meteo[7]};
+								#dir wind parsing
+									if ($row[7] eq 'dir_wind') { 
+										$measure = $row_meteo[8]; #nearby only for old version Davis software
+										#if ($row_meteo[8] eq 'N') {
+										#$measure = 0;
+										#};
+
+										#if ($row_meteo[8] eq 'NNE') {
+										#$measure = 23;
+										#};
+
+										#if ($row_meteo[8] eq 'NE') {
+										#$measure = 45;
+										#};
+
+										#if ($row_meteo[8] eq 'ENE') {
+										#$measure = 68;
+										#};
+
+										#if ($row_meteo[8] eq 'E') {
+										#$measure = 90;
+										#};
+
+										#if ($row_meteo[8] eq 'ESE') {
+										#$measure = 113;
+										#};
+
+										#if ($row_meteo[8] eq 'SE') {
+										#$measure = 135;
+										#};
+
+										#if ($row_meteo[8] eq 'SSE') {
+										#$measure = 158;
+										#};
+
+										#if ($row_meteo[8] eq 'S') {
+										#$measure = 180;
+										#};
+
+										#if ($row_meteo[8] eq 'SWS') {
+										#$measure = 203;
+										#};
+
+										#if ($row_meteo[8] eq 'SW') {
+										#$measure = 225;
+										#};
+
+										#if ($row_meteo[8] eq 'WSW') {
+										#$measure = 248;
+										#};
+
+										#if ($row_meteo[8] eq 'W') {
+										#$measure = 270;
+										#};
+
+										#if ($row_meteo[8] eq 'WNW') {
+										#$measure = 293;
+										#};
+										
+										#if ($row_meteo[8] eq 'NW') {
+										#$measure = 315;
+										#};
+
+										#if ($row_meteo[8] eq 'NNW') {
+										#$measure = 338;
+										#};
+									};
+
+									if ($row[7] eq 'rain') { $measure = $row_meteo[17]};
+									if ($row[7] eq 'uv_indx') { $measure = $row_meteo[22]}; #uv_dose - only in old version of Davis soft
+									if ($row[7] eq 'temp_in') { $measure = $row_meteo[27]};
+									if ($row[7] eq 'hum_in') { $measure = $row_meteo[28]};
+							
+							      print ("Station " . $row[0]." Date ". $row[2]." ". $row_meteo[1] ." ". $row[1] ." ". $measure . " \n");
+
+									#print "Result === time is === " . $_ ." === and value === $t->{Value} \n";
+									$query_ins->execute( $row[0], $row[2], $row_meteo[1], $row[1], $measure, 'false');
+									$last_update = $row_meteo[1];
+
+    							}
+							}
+				
+							$query_update->execute($last_update, $row[2]) if (defined($last_update));
+							print "================================================================\n";
+
+					}
+				}
+			}
+		
+	}
+	
+
+
+$query->finish;
+$query_update->finish;
+$query_ins ->finish;
+$query_sel->finish;
+$query_meteo->finish;
+
+
+print ("\nThere are ".$j." sensors in the database and " . $i . " records added from SOAP query\n");
+$db->disconnect;
+#print "Result is: ". XMLout($elm)."\n\n";
+#print "Result is: ". $som->dataof('//GetStationsResponse/GetStationsResult/StationInfo/*'). "...\n\n";
+

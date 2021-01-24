@@ -1,4 +1,5 @@
-const request = require('request');
+const request = require('node-fetch');
+const FormData = require('form-data');
 
 const Stations = require('../models/stations');
 const Sensors_data = require('../models/sensors_data');
@@ -37,6 +38,8 @@ var aspapi_codes_inv = {
 
 async function injector() {
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+    _appGlobal++;
+
 
     await Injection
         .where('is_present', true)
@@ -46,21 +49,37 @@ async function injector() {
             station = _stations.toJSON();
 
             if (station.length > 0) {
-                for (key in station) {
-                    const between_date = [new Date(station[key].date_time).format('Y-MM-ddTHH:mm:SS'), new Date().format('Y-MM-ddTHH:mm:SS')];
 
-                    var _stat = fetch_data(station[key].id, station[key].idd, between_date, station[key].last_time, station[key].uri, station[key].code, station[key].token, station[key].indx, station[key].msg_id)
+                for (key in station) {
+                    let _eot = new Date().getTime() - 86400000; //datetime now - one day in ms
+                    let _bot = new Date(station[key].date_time).getTime(); //plus one second
+                    let fromTime = new Date(_bot + 1000).format('Y-MM-ddTHH:mm:SS');
+
+                    //console.log("BOT = ", _bot, " EOT = ", _eot);
+                    if (_eot > _bot) {
+                        fromTime = new Date(_eot).format('Y-MM-ddTHH:mm:SS'); // if time between DB and time now more than 24 hours
+                    }
+
+
+
+                    const between_date = [fromTime, new Date().format('Y-MM-ddTHH:mm:SS')];
+                    //console.log("between  = ", between_date);
+                    var _stat = fetch_data(station[key].id, station[key].idd, between_date, station[key].last_time, station[key].uri, station[key].code, station[key].token, station[key].indx, station[key].msg_id, station[key].msg_id_out)
 
                 }
             }
-        }).catch(err => console.log('Database connection failed...', err));
+        }).catch(err => {
+            console.log('Database connection failed...', err)
+            _appGlobal--;
+        });
 
 
 }
 
-async function fetch_data(id, idd, between_date, last_time, uri, code, token, indx, msg_id) {
+async function fetch_data(id, idd, between_date, last_time, uri, code, token, indx, msg_id, msg_id_out) {
 
     var _ms_id = Number(msg_id);
+    var _msg_id_out = Number(msg_id_out);
     var _limit = Number(msg_id) + 1;
     var _go_out = false;//flag for exit from while
     var _conn_status = false; //connection result
@@ -75,7 +94,10 @@ async function fetch_data(id, idd, between_date, last_time, uri, code, token, in
         .then(_equipments => {
 
             equipments = _equipments.toJSON();
-        }).catch(err => console.log('Database fetching data failsed...', err));
+        }).catch(err => {
+            console.log('Database fetching data failed...', err)
+            _appGlobal--;
+        });
 
     //if not records detection
     await Sensors_data
@@ -86,10 +108,12 @@ async function fetch_data(id, idd, between_date, last_time, uri, code, token, in
             planty = _planty.toJSON();
             if (planty.length == 0)
                 _go_out = true;
+            else
+                between_date[0] = planty[0].date_time; //shift time begin to first record time
 
         });
-    //console.log("BETWEEN", between_date);
-    console.log("total records is ", planty.length);
+    //console.log("BETWEEN NEW", between_date);
+    //console.log("total records is ", planty.length);
 
     //begin while
     while (!_go_out) {
@@ -104,7 +128,7 @@ async function fetch_data(id, idd, between_date, last_time, uri, code, token, in
             var marker = {};
 
 
-            var time_frame = [new Date(new Date(between_date[0]).getTime() + 60000 * i).format('Y-MM-ddTHH:mm:SS'), new Date((new Date(between_date[0]).getTime() + 60000 * (i + 1))).format('Y-MM-ddTHH:mm:SS')];
+            var time_frame = [new Date(new Date(between_date[0]).getTime() + 60000 * i).format('Y-MM-ddTHH:mm:SS'), new Date((new Date(between_date[0]).getTime() + 60000 * (i + 1) - 1000)).format('Y-MM-ddTHH:mm:SS')];
             if (new Date(between_date[1]).getTime() < new Date((new Date(between_date[0]).getTime() + 60000 * (i + 1))))
                 _go_out = true;
             //if (_go_out) break;
@@ -122,9 +146,9 @@ async function fetch_data(id, idd, between_date, last_time, uri, code, token, in
                     .then(_data => {
                         data = _data.toJSON();
 
-
+                        //console.log("new frame ----", time_frame)
                         if (data.length > 0) {//create a pouch with measurements
-                            // console.log("data ----", data)
+
                             var pouch = {};
 
                             for (index in data) {
@@ -162,26 +186,32 @@ async function fetch_data(id, idd, between_date, last_time, uri, code, token, in
 
                         }
 
-                    }).catch(err => console.log('Database fetching data failed...', err));
+                    }).catch(err => {
+                        console.log('Database fetching data failed...', err)
+                        _appGlobal--;
+                    });
 
 
             }
 
             if (!isEmpty(params)) {
+                _msg_id_out++;
 
-                /* console.log('JSON = ', JSON.stringify({
-                     url: uri, method: 'POST', json: {
-                         "token": token,
-                         "message": _limit,
-                         "locality": indx,
-                         "object": code,
-                         "date_time": between_date[1],
-                         "params": params
-                     }
-                 }));*/
-                console.log('params = ', JSON.stringify({
+                console.log("# msg ----", _msg_id_out);
+                
+                /*console.log('params = ', JSON.stringify({
                     "token": token,
-                    "message": _limit,
+                    "message": _msg_id_out, //incremented field
+                    "locality": indx,
+                    "object": code,
+                    "date_time": between_date[1],
+                    "params": params
+                }));*/
+                const form = new FormData();
+
+                form.append("data", JSON.stringify({
+                    "token": token,
+                    "message": _msg_id_out,
                     "locality": indx,
                     "object": code,
                     "date_time": between_date[1],
@@ -189,119 +219,137 @@ async function fetch_data(id, idd, between_date, last_time, uri, code, token, in
                 }));
 
                 var options = {
-                    headers: {
-                        'Content-Type': 'multipart/form-data'
-                    },
-                    uri: uri,
-                    method: 'POST'
-                    // formData: JSON.stringify( )
+                    headers: form.getHeaders(),
+                    method: 'POST',
+                    body: form
                 };
-                var r = request(options,
-                    function (err, res, body) {
-                        // console.log("out request")
-                        if (!isEmpty(err)) {
-                            var success = false;
-                            _conn_status = false;
-                            console.log("err = ", err);
-                            _go_out = true;
-                        }
-                        else {
-                            console.log("response = ", res.body);
-                            //console.log("response all= ", res);
-
-                            var result = JSON.parse(res.body);
-                            console.log("status = ", result.success);
-                            _conn_status = true;
-                        }
-
-                        if (result.success) {
-
-                            let process_time_frame = time_frame[1];
-
-                            if (_ms_id > 0) {
-                                _ms_id--;
-
-                                let _time = time_frame[0];
-                                if (new Date(time_frame[1]).getTime() < new Date(between_date[1]).getTime()) {
-                                    _time = time_frame[1];
-                                }
-                                injection_update_all_time(id, _time, between_date[1], _ms_id);
-
-                            } else {
-                                //if message line is empty but time frame exist
-                                let _time = time_frame[1];
-                                detect_data(time_frame[1], between_date[1]).then(_out => {
-                                    if (_out > 0) {
-                                        _limit++;
-                                        //console.log("msg_id = 0 but data exist = ", _limit);
-
-                                    } else {
-                                        _time = between_date[1];
-                                        _go_out = true;
-                                    }
-                                    if (time_frame[1] > between_date[1]) {
-
-                                        _time = time_frame[0];
-
-                                    }
-                                    //if line is out
-                                    injection_update_all_time(id, _time, between_date[1], 0);
 
 
-                                });
+
+                try {
+                    const r = await request(uri, options);
+                    const result = await r.json();
+
+                    //console.log("status = ", result.success);
+                    _conn_status = true;
 
 
+                    if (result.success) {
+
+                        let process_time_frame = time_frame[1];
+
+                        if (_ms_id > 0) {
+                            _ms_id--;
+
+                            let _time = time_frame[0];
+                            if (new Date(time_frame[1]).getTime() < new Date(between_date[1]).getTime()) {
+                                _time = time_frame[1];
                             }
-                            injected_table_ins(result.message, between_date[1], measure_time, uri, result.transaction, idd);
+                            _time = new Date(new Date(_time).getTime() + 1000).format('Y-MM-ddTHH:mm:SS');
+                            injection_update_all_time(id, _time, between_date[1], _ms_id, result.message);
 
-
-                        }
-                        else {
-                            let process_time_frame = new Date((new Date(between_date[1]).getTime() - 86400000)).format('Y-MM-ddTHH:mm:SS'); //value that 24 hours ago from now
-
-                            if (_ms_id < 1440) {
-                                rs
-
-                                _ms_id++;
-
-                                //console.log("_ms_id = ", _ms_id);
-                                if (process_time_frame > between_date[0]) {//if less than 1440 measures but time is more than 24 hours
-
-                                    injection_update_all_time(id, process_time_frame, process_time_frame, _ms_id)
-                                        .then(result => {
-
-                                            _go_out = true;
-                                        });
+                        } else {
+                            //if message line is empty but time frame exist
+                            let _time = time_frame[1];
+                            detect_data(time_frame[1], between_date[1]).then(_out => {
+                                if (_out > 0) {
+                                    _limit++;
+                                    //console.log("msg_id = 0 but data exist = ", _limit);
 
                                 } else {
-                                    injection_update_msg(id, _ms_id)
-                                        .then(result => {
-
-                                            _go_out = true;
-                                        });
+                                    _time = between_date[1];
+                                    _go_out = true;
                                 }
-                            } else {
-                                //console.log("process time frame = ", process_time_frame);
+                                if (time_frame[1] > between_date[1]) {
 
-                                injection_update_time(id, process_time_frame).then(result => {
+                                    _time = time_frame[0];
+
+                                }
+                                //if line is out
+                                injection_update_all_time(id, _time, between_date[1], 0, result.message);
+
+
+                            });
+
+
+                        }
+                        injected_table_ins(result.message, measure_time, uri, result.transaction, idd, result.message);
+
+
+                    }
+                    else {
+
+                        let process_time_frame = new Date((new Date(between_date[1]).getTime() - 86400000)).format('Y-MM-ddTHH:mm:SS'); //value that 24 hours ago from now
+
+                        if (_ms_id < 1440) {
+
+                            _ms_id++;
+
+                            //console.log("_ms_id = ", _ms_id);
+                            if (process_time_frame > between_date[0]) {//if less than 1440 measures but time is more than 24 hours
+
+                                injection_update_all_time(id, process_time_frame, process_time_frame, _ms_id, -1)
+                                    .then(result => {
+
+                                        _go_out = true;
+                                    });
+
+                            } else {
+                                injection_update_msg(id, _ms_id)
+                                    .then(result => {
+
+                                        _go_out = true;
+                                    });
+                            }
+                        } else {
+                            //console.log("process time frame = ", process_time_frame);
+
+                            injection_update_time(id, process_time_frame).then(result => {
+
+                                _go_out = true;
+                            })
+                        }
+                    }
+
+
+                    // end of try
+
+                } catch (error) {
+                    console.log("err is ", error)
+                    _conn_status = false;
+                    _go_out = true;
+
+                    let process_time_frame = new Date((new Date(between_date[1]).getTime() - 86400000)).format('Y-MM-ddTHH:mm:SS'); //value that 24 hours ago from now
+
+                    if (_ms_id < 1440) {
+
+                        _ms_id++;
+
+                        //console.log("_ms_id = ", _ms_id);
+                        if (process_time_frame > between_date[0]) {//if less than 1440 measures but time is more than 24 hours
+
+                            injection_update_all_time(id, process_time_frame, process_time_frame, _ms_id, -1)
+                                .then(result => {
 
                                     _go_out = true;
-                                })
-                            }
+                                });
+
+                        } else {
+                            injection_update_msg(id, _ms_id)
+                                .then(result => {
+
+                                    _go_out = true;
+                                });
                         }
+                    } else {
+                        //console.log("process time frame = ", process_time_frame);
 
-                    })
+                        injection_update_time(id, process_time_frame).then(result => {
 
-                var form = r.form();
-
-                form.append("data", JSON.stringify({
-                    "token": token,
-                    "message": _limit,
-                    "locality": indx,
-                    "object": code,
-                    "date_time": between_date[1],
-                    "params": params
-                }));
+                            _go_out = true;
+                        })
+                    }
+                }
 
 
             } else {
@@ -314,7 +362,7 @@ async function fetch_data(id, idd, between_date, last_time, uri, code, token, in
                         // console.log("_out", _conn_status)
                         //if line is out
                         if (_conn_status)
-                            injection_update_all_time(id, between_date[1], between_date[1], 0)
+                            injection_update_all_time(id, between_date[1], between_date[1], 0, -1)
                                 .then(result => {
                                     console.log('Emty results');
                                 });
@@ -332,6 +380,8 @@ async function fetch_data(id, idd, between_date, last_time, uri, code, token, in
     } // end while cycle
 
     console.log('injection is completed...');
+    _appGlobal--;
+
 };
 
 async function detect_data(time_in, time_now) {
@@ -359,16 +409,30 @@ async function detect_data(time_in, time_now) {
     }
 }
 
-async function injection_update_all_time(id, _time, last_time, msg_id) {
-    await Injection.where({ id: id })
-        .save({
-            date_time: _time,
-            last_time: last_time,
-            msg_id: msg_id
-        }, { patch: true })
-        .then(result => {
-            console.log("Message is inserted at ", last_time, " from ", _time);
-        }).catch(err => console.log("Update Injection table error...", err));
+async function injection_update_all_time(id, _time, last_time, msg_id, _msg_id_out) {
+
+    if (_msg_id_out > -1) {
+        await Injection.where({ id: id })
+            .save({
+                date_time: _time,
+                last_time: last_time,
+                msg_id: msg_id,
+                msg_id_out: _msg_id_out
+            }, { patch: true })
+            .then(result => {
+                //console.log("Message is inserted at ", last_time, " from ", _time);
+            }).catch(err => console.log("Update Injection table error...", err));
+    } else {
+        await Injection.where({ id: id })
+            .save({
+                date_time: _time,
+                last_time: last_time,
+                msg_id: msg_id,
+            }, { patch: true })
+            .then(result => {
+                //console.log("Message is inserted at ", last_time, " from ", _time);
+            }).catch(err => console.log("Update Injection table error...", err));
+    }
 }
 
 async function injection_update_msg(id, msg_id) {
@@ -393,12 +457,12 @@ async function injection_update_time(id, _time) {
         }).catch(err => console.log("Update Injection table error...", err));
 }
 
-async function injected_table_ins(msg_id, _msg_time, _time, uri, _transaction, idd) {
-
-    await Injected.forge({ "date_time": _time, "msg_id": msg_id, "uri": uri, "transaction": _transaction, "msg_time": _msg_time, "idd": idd }).save()
+async function injected_table_ins(msg_id, _time, uri, _transaction, idd, _msg_id_out) {
+    const _msg_time_ins = new Date().format('Y-MM-ddTHH:mm:SS');
+    //console.log("Time is ", _msg_time_ins);
+    await Injected.forge({ "date_time": _time, "msg_id": msg_id, "uri": uri, "transaction": _transaction, "msg_time": _msg_time_ins, "idd": idd, "msg_id_out": _msg_id_out }).save()
         .catch(err => console.log("Insert in Injected table error...", err));
 }
-
 function try_push() {
 
     var options = {
